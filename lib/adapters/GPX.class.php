@@ -1063,7 +1063,7 @@ class GPX extends GeoAdapter {
 
 		uasort($components, function($a, $b) {
             $aPrecedence = $this->getComponentPrecedence($a);
-            $bPrecedence =  getComponentPrecedence($b);
+            $bPrecedence = $this->getComponentPrecedence($b);
             return ($aPrecedence < $bPrecedence) ? -1 : (($aPrecedence > $bPrecedence) ? 1 : 0);
         });
 
