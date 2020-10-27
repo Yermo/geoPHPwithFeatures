@@ -150,6 +150,8 @@ class Point extends Geometry {
 			$coords[2] = 0;
 		}
 
+		// the following is only present when converting Garmin GPX formatted files.
+
 		if (( $metadata = $this->getMetaData() ) != NULL ) {
 
 			// KLUDGE: shoehorn the meta data in if we are generating
