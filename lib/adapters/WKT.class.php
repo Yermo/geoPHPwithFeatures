@@ -69,13 +69,7 @@ class WKT extends GeoAdapter
 
     $parts = explode(' ',$data_string);
 
-    // WKT supports an optional elevation in the third position.
-
-    if ( isset( $parts[2] ) ) {
-      return new Point( $parts[0], $parts[1], $parts[2] );
-    } else {
-      return new Point( $parts[0], $parts[1] );
-    }
+    return new Point( $parts[0], $parts[1] );
   }
 
   private function parseLineString($data_string) {
@@ -241,12 +235,7 @@ class WKT extends GeoAdapter
     $parts = array();
     switch ($geometry->geometryType()) {
       case 'Point':
-        if ( $geometry->getZ() !== NULL ) {
-          return $geometry->getX().' '.$geometry->getY() . ' ' . $geometry->getZ();
-        } else {
           return $geometry->getX().' '.$geometry->getY();
-        }
-
       case 'LineString':
         foreach ($geometry->getComponents() as $component) {
           $parts[] = $this->extractData($component);
