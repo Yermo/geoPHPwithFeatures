@@ -1191,15 +1191,15 @@ class GPX extends GeoAdapter {
 		$wayPoints = $meta_data[ 'waypoints' ];
 		$legs = $geom->getComponents();
 		$offset = 0;
-                $tagClosed = false;
 
 		foreach ( $wayPoints as $wayPoint ) {
 
-			$gpx .= '<'.$this->nss.'rtept lat="'. $wayPoint[ 'geometry' ][ 'coordinates' ][ 1 ] .'" lon="'.  $wayPoint[ 'geometry' ][ 'coordinates' ][ 0 ] . '"';
+			$gpx .= '<'.$this->nss.'rtept lat="'. $wayPoint[ 'geometry' ][ 'coordinates' ][ 1 ] .'" lon="'.  $wayPoint[ 'geometry' ][ 'coordinates' ][ 0 ] . '">';
 
 			if ( isset( $wayPoint[ 'properties' ][ 'name' ] )) {
-				$gpx .= '><' . $this->nss . 'name><![CDATA[' . htmlentities( $wayPoint[ 'properties' ][ 'name' ]  ) . ']]></' . $this->nss . 'name>';
-				$tagClosed = true;
+				$gpx .= '<' . $this->nss . 'name><![CDATA[' . htmlentities( $wayPoint[ 'properties' ][ 'name' ]  ) . ']]></' . $this->nss . 'name>';
+			} else {
+				$gpx .= '<' . $this->nss . 'name><![CDATA[' . 'Way Point {$offset}' . ']]></' . $this->nss . 'name>';
 			}
 
 			// We have one more WayPoint than legs.
@@ -1217,18 +1217,12 @@ class GPX extends GeoAdapter {
 
 				$gpx .= '</gpxx:RoutePointExtension>';
 				$gpx .= '</extensions>';
-				$gpx .= '</rtept>';
 
-			} else {
-
-				if ( $tagClosed ) {
-					$gpx .= '</rtept>';
-				} else {
-					$gpx .= '/>';
-				}
 			}
 
-		$offset++;
+			$gpx .= '</rtept>';
+
+			$offset++;
 			
 		} // end of loop over wayPoints.
     
@@ -1381,8 +1375,6 @@ class GPX extends GeoAdapter {
 						break;
 
 					case 'link' :
-
-						// FIXME: Broken.
 
 						$gpx .=  $this->linksToGPX( $data ) ;
 
