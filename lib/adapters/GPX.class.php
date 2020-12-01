@@ -1199,7 +1199,8 @@ class GPX extends GeoAdapter {
 			if ( isset( $wayPoint[ 'properties' ][ 'name' ] )) {
 				$gpx .= '<' . $this->nss . 'name><![CDATA[' . htmlentities( $wayPoint[ 'properties' ][ 'name' ]  ) . ']]></' . $this->nss . 'name>';
 			} else {
-				$gpx .= '<' . $this->nss . 'name><![CDATA[' . "Way Point {$offset}" . ']]></' . $this->nss . 'name>';
+				$wayPointNum = $offset + 1;
+				$gpx .= '<' . $this->nss . 'name><![CDATA[' . "Way Point {$wayPointNum}" . ']]></' . $this->nss . 'name>';
 			}
 
 			// We have one more WayPoint than legs.
