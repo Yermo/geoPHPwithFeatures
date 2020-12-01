@@ -128,7 +128,7 @@ class KML extends GeoAdapter {
 						// linestrings are always stored as tracks, not routes.
 
 						if ( $node_name == 'linestring' ) {
-							$meta_data[ 'line_type' ] = 'trk';
+							$meta_data[ 'line_type' ] = 'track';
 						}
 
 						$geometry->setMetaData( $meta_data );

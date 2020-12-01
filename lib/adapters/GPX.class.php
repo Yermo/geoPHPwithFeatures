@@ -255,6 +255,7 @@ class GPX extends GeoAdapter {
 		foreach ($trk_elements as $trk) {
 
 			$components = array();
+			$legs = array();
 
 			foreach ($this->childElements($trk, 'trkseg') as $trkseg) {
 				foreach ($this->childElements($trkseg, 'trkpt') as $trkpt) {
@@ -274,17 +275,20 @@ class GPX extends GeoAdapter {
 					$components[] = new Point($lon, $lat, $elevation, $meta_data );
 
 				}
+
+				$legs[] = new LineString( $components );
+
 			}
 
-			if ($components) {
+			if ($legs) {
 
 				// tracks may have a name and extensions childnodes.
 
-				$meta_data = $this->parseMetaDataChildren( $trk );
+				$track_meta_data = $this->parseMetaDataChildren( $trk );
 
-				$meta_data[ 'line_type' ] = 'trk';
+				$track_meta_data[ 'line_type' ] = 'track';
                 	
-				$lines[] = new LineString( $components, $meta_data );
+				$lines[] = new MultiLineString( $legs, $track_meta_data );
 
 			}
 		}
@@ -298,9 +302,8 @@ class GPX extends GeoAdapter {
 	/**
 	* parse routes
 	*
-	* Each route is represented by a linestring. The linestring just consists of
-	* the waypoints used to calculate the route. The calculated points 
-	* between each waypoint are stored under the routepoint extension.
+	* Each route is represented by a multilinestring. The linestring 
+	* consists of legs of coordinates that correspond to a set of way points.
 	*
 	* @link http://www.topografix.com/gpx/1/1/#type_rteType
 	*/
@@ -309,35 +312,60 @@ class GPX extends GeoAdapter {
 		$lines = array();
 		$rte_elements = $this->xmlobj->getElementsByTagName('rte');
 
-		foreach ($rte_elements as $rte) {
-			$components = array();
-			foreach ($this->childElements($rte, 'rtept') as $rtept) {
+		foreach ( $rte_elements as $rte ) {
+			$legs = array();
+                        $endPoints = array();
+
+			$route_meta_data = $this->parseMetaDataChildren( $rte );
+
+			$route_meta_data[ 'line_type' ] = 'route';
+			$route_meta_data[ 'waypoints' ] = array();
+
+			// rtept represents a way point.
+
+			foreach ( $this->childElements($rte, 'rtept') as $rtept ) {
+
 				$lon = $rtept->attributes->getNamedItem("lon")->nodeValue;
 				$lat = $rtept->attributes->getNamedItem("lat")->nodeValue;
 
-				$elevation = NULL;
+				$endPoints[] = new Point( $lon, $lat );
 
 				$meta_data = $this->parseMetaDataChildren( $rtept );
 
-				if ( isset( $meta_data[ 'elevation' ] ) ) {
-					$elevation = @$meta_data[ 'elevation' ];
+				// see parseRoutepointExtension. There is a final rtept that does not
+				// have any coordinates
 
-					unset( $meta_data[ 'elevation' ] );
+				if ( isset( $meta_data[ 'extensions' ] ) && 
+					isset( $meta_data[ 'extensions' ][ 'gpxx_routepointextension' ] ) &&
+					count( $meta_data[ 'extensions' ][ 'gpxx_routepointextension' ] ) > 0 ) {
+
+					$legCoordinates = @$meta_data[ 'extensions' ][ 'gpxx_routepointextension' ];
+
+					$legPoints = array();
+
+					foreach ( $legCoordinates as $coordinates ) {
+						$legPoints[] = new Point( $coordinates[0], $coordinates[1] );
+					}
+
+					unset( $meta_data[ 'extensions' ][ 'gpxx_routepointextension' ] );
+					$legs[] = new LineString( $legPoints );
+
 				}
 
-				// for routes we store a complete Feature object under 
-				// the waypoint.
+				$wayPoint = $this->metaDataToWayPointFeature( $meta_data, $lat, $lon );
+				$route_meta_data[ 'waypoints' ][] = $wayPoint;
+        	
 
-				$pointFeature = $this->metaDataToWayPointFeature( $meta_data, $lat, $lon );
-
-				$components[] = new Point($lon, $lat, $elevation, $pointFeature );
 			}
 
-		$meta_data = $this->parseMetaDataChildren( $rte );
+			// It is possible that a route consists only of the rtept nodes without any calculated
+			// coordinates, in which case we'll just use the endpoints as a placeholder.
 
-		$meta_data[ 'line_type' ] = 'rte';
- 
-		$lines[] = new LineString( $components, $meta_data );
+			if ( count( $legs ) == 0 ) {
+				$lines[] = new MultiLineString( [ new LineString( $endPoints ) ], $route_meta_data );
+			} else {
+				$lines[] = new MultiLineString( $legs, $route_meta_data );
+			}
 		}
 
 	return $lines;
@@ -361,8 +389,7 @@ class GPX extends GeoAdapter {
 			'properties' => $meta_data,
 			'geometry' => array(
 				'type' => 'Point',
-				'lat' => $lat,
-				'lon' => $lon
+				'coordinates' => [ $lon, $lat ]
 			)
 		);
 
@@ -871,9 +898,11 @@ class GPX extends GeoAdapter {
 			case 'linestring':
 				return $this->linestringToGPX($geom);
 				break;
+			case 'multilinestring':
+				return $this->multilinestringToGPX($geom);
+				break;
 			case 'polygon':
 			case 'multipoint':
-			case 'multilinestring':
 			case 'multipolygon':
 			case 'geometrycollection':
 				return $this->collectionToGPX($geom);
@@ -927,13 +956,15 @@ class GPX extends GeoAdapter {
 
 	/**
 	* Given a linestring generate a track or route
+	*
+	* @see multilinestringToGPX()
 	*/
   
 	private function linestringToGPX($geom) {
 
 		$meta_data = $geom->getMetaData();
 
-		if (( $meta_data == NULL ) || ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'trk' )) { 
+		if (( $meta_data == NULL ) || ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'track' )) { 
 
 			$gpx = $this->linestringToTrk( $geom );
 
@@ -1045,6 +1076,171 @@ class GPX extends GeoAdapter {
 	// -------------------------------------------------
 
 	/**
+	* Given a multilinestring generate a track or route
+	*
+	* In the previous design, routes and tracks were stored as single linestrings
+	* but using multilinestrings has proven to be more convenient.
+	*/
+  
+	private function multilinestringToGPX($geom) {
+
+		$meta_data = $geom->getMetaData();
+
+		if (( $meta_data == NULL ) || ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'track' )) { 
+
+			$gpx = $this->multilinestringToTrk( $geom );
+
+		} else {
+
+			$gpx = $this->multilinestringToRte( $geom ) ;
+
+		}
+
+		return $gpx;
+
+	}
+
+	// ---------------------------------------------------
+
+	/**
+	* given a multilinestring generate a track
+	*/
+
+	private function multilinestringToTrk( $geom ) {
+
+		$gpx = '<'.$this->nss.'trk>';
+
+		// if metadata contains junk this may generate incorrect GPX.
+
+		if (( $meta_data = $geom->getMetaData()) != NULL ) {
+			$gpx .= $this->metaDataToGPX( 'trk', $meta_data );
+		}
+
+		// Each linestring represents a track segment.
+
+		foreach( $geom->getComponents() as $leg ) {
+
+			// Not sure if this is correct, but it seems trkseg's 
+			// don't support any feature metadata.
+
+			$gpx .= '<' . $this->nss . 'trkseg>';
+    
+			foreach ($leg->getComponents() as $comp) {
+				$gpx .= '<'.$this->nss.'trkpt lat="'.$comp->getY().'" lon="'.$comp->getX() . '"';
+
+				$tagClosed = false;
+
+				// do we have an elevation for this point? 
+
+				if ( $comp->getZ() ) {
+
+					$tagClosed = true;
+					$gpx .= '><ele>' . $comp->getZ() . '</ele>';
+
+				}
+
+		
+				if (( $meta_data = $comp->getMetaData()) != NULL ) {
+
+					if ( ! $tagClosed ) {
+						$tagClosed = true;
+						$gpx .= '>';
+					}
+
+					$gpx .= $this->metaDataToGPX( 'trkpt', $meta_data );
+
+				}
+
+				if ( $tagClosed ) {
+					$gpx .= '</' . $this->nss . 'trkpt>'; 
+				} else {
+					$gpx .= '/>';
+				}
+
+			} // end of loop over leg coordinates.
+
+			$gpx .= '</'.$this->nss.'trkseg>';
+
+		} // end of loop over legs.
+    
+		$gpx .= '</'.$this->nss.'trk>';
+    
+		return $gpx;
+
+	} // end of multilinestringToTrk()
+
+	// ---------------------------------------------------
+
+	/**
+	* given a multilinestring generate a route
+	*
+	* WayPoints are stored in the top level meta data. The route point extensions coordinates are
+	* made up of the multilinestring legs.
+	*/
+
+	private function multilinestringToRte( $geom ) {
+
+		$gpx = '<'.$this->nss.'rte>';
+
+		// if metadata contains junk this may generate incorrect GPX.
+
+		if (( $meta_data = $geom->getMetaData()) != NULL ) {
+			$gpx .= $this->metaDataToGPX( 'rte', $meta_data );
+		}
+
+		$wayPoints = $meta_data[ 'waypoints' ];
+		$legs = $geom->getComponents();
+		$offset = 0;
+                $tagClosed = false;
+
+		foreach ( $wayPoints as $wayPoint ) {
+
+			$gpx .= '<'.$this->nss.'rtept lat="'. $wayPoint[ 'geometry' ][ 'coordinates' ][ 1 ] .'" lon="'.  $wayPoint[ 'geometry' ][ 'coordinates' ][ 0 ] . '"';
+
+			if ( isset( $wayPoint[ 'properties' ][ 'name' ] )) {
+				$gpx .= '><' . $this->nss . 'name><![CDATA[' . htmlentities( $wayPoint[ 'properties' ][ 'name' ]  ) . ']]></' . $this->nss . 'name>';
+				$tagClosed = true;
+			}
+
+			// We have one more WayPoint than legs.
+
+			if ( isset( $legs[ $offset ] ) ) {
+
+				$leg = $legs[ $offset ];
+
+				$gpx .= '<extensions>';
+				$gpx .= '<gpxx:RoutePointExtension>';
+
+				foreach ( $leg->getComponents() as $comp ) {
+					$gpx .= '<'.$this->nss.'gpxx:rpt lat="'. $comp->getY() . '" lon="' . $comp->getX() . '"/>';
+	 			}
+
+				$gpx .= '</gpxx:RoutePointExtension>';
+				$gpx .= '</extensions>';
+				$gpx .= '</rtept>';
+
+			} else {
+
+				if ( $tagClosed ) {
+					$gpx .= '</rtept>';
+				} else {
+					$gpx .= '/>';
+				}
+			}
+
+		$offset++;
+			
+		} // end of loop over wayPoints.
+    
+		$gpx .= '</' . $this->nss . 'rte>';
+    
+		return $gpx;
+
+	} // end of multilinestringToRte()
+
+	// -------------------------------------------------
+
+	/**
 	* generate GPX from a geometrycollection
 	*
 	* Note that the elements in a GPX file are required to be in a specific order.
@@ -1068,9 +1264,9 @@ class GPX extends GeoAdapter {
 
 		foreach ( $components as $comp ) {
 			$type = strtolower( $comp->getGeomType() );
-			if ( $type == 'linestring' ) {
+			if (( $type == 'linestring' ) || ( $type == 'multilinestring' )) {
 				$meta_data = $comp->getMetaData();
-				if (( $meta_data != NULL ) && ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'rte' )) { 
+				if (( $meta_data != NULL ) && ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'route' )) { 
 					$gpx .= $this->geometryToGPX($comp);
 				}
 			}
@@ -1081,9 +1277,10 @@ class GPX extends GeoAdapter {
 		foreach ( $components as $comp ) {
 			$type = strtolower( $comp->getGeomType() );
 
-			if ( $type == 'linestring' ) {
+			if (( $type == 'linestring' ) || ( $type == 'multilinestring' )) {
 				$meta_data = $comp->getMetaData();
-				if (( $meta_data == NULL ) || ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'trk' )) { 
+
+				if (( $meta_data == NULL ) || ( isset( $meta_data[ 'line_type' ] ) &&  $meta_data[ 'line_type' ] == 'track' )) { 
 					$gpx .= $this->geometryToGPX($comp);
 				}
 			}
@@ -1114,7 +1311,7 @@ class GPX extends GeoAdapter {
 
 			$meta_data = $comp->getMetaData();
 
-			if (($meta_data != null) && (isset($meta_data['line_type']) && $meta_data['line_type'] == 'rte')) {
+			if (($meta_data != null) && (isset($meta_data['line_type']) && $meta_data['line_type'] == 'route')) {
 				return 2;
 			}
 
@@ -1130,7 +1327,7 @@ class GPX extends GeoAdapter {
 	* generate  metadata GPX child nodes 
 	*
 	* To add to our misery, the order of the nodes matters. If we do not generate them 
-	* in the exact order specificed in the spec the generated GPX file will fail to valid.
+	* in the exact order specificed in the spec the generated GPX file will fail to validate.
 	* 
 	* @param string $type root, wpt, rte, rtept, trk, trkpt
 	*/
@@ -1151,7 +1348,8 @@ class GPX extends GeoAdapter {
 			'extensions'
 		);
 
-		// are we dealing with a route waypoint object in a route point object?? 
+		// DEPRECATED: are we dealing with a route waypoint object in a route point object?
+		// (WayPoints are now stored under the properties key at the root level of the route)
 
 		if ( array_key_exists( 'type', $meta_data ) && (  @$meta_data[ 'type' ] == 'Feature' )) { 
 			$meta_data = $meta_data[ 'properties' ];

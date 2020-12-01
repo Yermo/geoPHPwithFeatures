@@ -8,69 +8,54 @@
 * without losing data.
 *
 * For routes and tracks it saves them as "features" and adds a line_type property which may be
-* 'rte' or 'trk' corresponding to GPX routes and tracks.
+* 'route' or 'trackk' corresponding to GPX routes and tracks.
 *
-* Route waypoints are stored in the coordatinates array of the geometry but the calculated
-* points between waypoints are stored in a waypoint feature object at position 3 in the coordate array.
+* Route waypoints are now stored as features under the wayPoints key in the root level properties. 
+* WayPoints correspond to the legs of the MultiLineString.
 *
 * The extended GeoJSON for a route has the following format:
 *
 * {
-*	"geometry" : {
-*		"type" : "LineString",
-*		"coordinates" : [[
-*			-77.463442,
-*			39.526728,
-*			null, {
-*				"extensions" : {
-*					"gpxx_routepointextension" : [[
-*							"-77.463442",
-*							"39.526642",
-*						],
-*						....
-*					],
-*				},
-*				"name" : "Watershed"
-*			}
-*			],
-*			[
-*			-77.500843,
-*			39.548915,
-*			null, 
+*	"type" : "Feature",
+*	"properties" : {
+*		"line_type" : "route",
+*		"name" : "Some Route"
+*		"waypoints": [
 *			{
-*				"properties" : {
-*					"sym" : "Waypoint",
-*					"extensions" : {
-*						"gpxx_waypointextension" : {},
-*						"gpxx_address" : {
-*							...
-*							},
-*						"gpxx_routepointextension" : [[
-*							"-77.500864",
-*							"39.548872"
-*						],
-*						....
-*						]
-*
-*					},
-*					"name" : "A Sample WayPoint"
-*				},
-*				"geometry" : {
-*					"coordinates" : [
-*						-77.500843,
-*						39.548915,
-*						null
-*					],
-*					"type" : "Point"
-*				},
-*				"type" : "Feature"
+*         		"type" : "Feature"
+*			"properties": {
+*				"name": "some waypoint"
+*			}
+*         		"geometry" : {
+*				"type" : "Point"
+*            			"coordinates" : [
+*               			121.640268,
+*               			25.061784,
+*               			38.1
+*            			],
+*         		},{
+*			....
 *			}
 *		]
 *	},
-*	"type" : "Feature",
-*	"properties" : {
-*		"line_type" : "rte",
-*		"name" : "Some Route"
+*	"geometry" : {
+*		"type" : "MultiLineString",
+*		"coordinates" : [
+*			[
+*				[
+*				-77.463442,
+*				39.526728,
+*				null
+*				],
+*				[
+*				-77.500843,
+*				39.548915,
+* 		      		null, 
+*				],
+*			],[
+*			...
+*			]
+*		]
 *	}
 * }
 *
