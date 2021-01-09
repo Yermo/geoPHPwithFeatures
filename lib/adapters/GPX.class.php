@@ -361,11 +361,29 @@ class GPX extends GeoAdapter {
 			// It is possible that a route consists only of the rtept nodes without any calculated
 			// coordinates, in which case we'll just use the endpoints as a placeholder.
 
-			if ( count( $legs ) == 0 ) {
-				$lines[] = new MultiLineString( [ new LineString( $endPoints ) ], $route_meta_data );
-			} else {
-				$lines[] = new MultiLineString( $legs, $route_meta_data );
-			}
+                        // this sucks. It turns out that Garmin BaseCamp will allow single point routes
+                        //
+                        // For the moment, just ignore single point routes.
+
+                        try {
+                                $line = new LineString( $components, $meta_data );
+
+				if ( count( $legs ) == 0 ) {
+					$line = new MultiLineString( [ new LineString( $endPoints ) ], $route_meta_data );
+				} else {
+					$line = new MultiLineString( $legs, $route_meta_data );
+				}
+
+                        } catch( Exception $e ) {
+
+                                // we'll ignore the error for now.
+
+                                $line = NULL;
+                        }
+
+                        if ( $line != NULL ) {
+                                $lines[] = $line;
+                        }
 		}
 
 	return $lines;
