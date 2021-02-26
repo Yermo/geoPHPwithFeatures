@@ -366,7 +366,6 @@ class GPX extends GeoAdapter {
                         // For the moment, just ignore single point routes.
 
                         try {
-                                $line = new LineString( $components, $meta_data );
 
 				if ( count( $legs ) == 0 ) {
 					$line = new MultiLineString( [ new LineString( $endPoints ) ], $route_meta_data );
